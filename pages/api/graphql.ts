@@ -1,7 +1,6 @@
 import { createYoga } from 'graphql-yoga'
 import SchemaBuilder from "@pothos/core";
 import PrismaPlugin from "@pothos/plugin-prisma";
-import { DateTimeResolver } from 'graphql-scalars'
 
 import type PrismaTypes from "@pothos/plugin-prisma/generated";
 import type { NextApiRequest, NextApiResponse } from 'next'
@@ -21,12 +20,21 @@ builder.queryType({})
 
 builder.mutationType({})
 
+builder.prismaObject('Profile', {
+  fields: (t) => ({
+    id: t.exposeInt('id'),
+    bio: t.exposeString('bio', { nullable: true }),
+    user: t.relation('user'),
+  }),
+})
+
 builder.prismaObject("User", {
   fields: (t) => ({
     id: t.exposeID('id'),
     email: t.exposeString('email'),
     name: t.exposeString('name', { nullable: true }),
-    posts: t.relation("posts")
+    posts: t.relation("posts"),
+    profile: t.relation('profile'),
   })
 })
 
@@ -176,6 +184,28 @@ builder.mutationField('createDraft', (t) =>
       })
   })
 )
+
+builder.mutationField('createProfile', (t) =>
+  t.prismaField({
+    type: 'Profile',
+    args: {
+      bio: t.arg.string({ required: true }),
+      data: t.arg({ type: UserUniqueInput })
+    },
+    resolve: async (query, _parent, args, _context) =>
+      prisma.profile.create({
+        ...query,
+        data: {
+          bio: args.bio,
+          user: {
+            connect: {
+              id: args.data?.id || undefined,
+              email: args.data?.email || undefined
+            }
+          }
+        }
+      })
+}))
 
 const schema = builder.toSchema()
 
